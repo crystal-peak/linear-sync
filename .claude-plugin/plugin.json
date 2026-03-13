@@ -1,6 +1,6 @@
 {
   "name": "linear-sync",
-  "version": "0.0.17-alpha",
+  "version": "0.0.18-alpha",
   "description": "Linear-GitHub sync for Claude Code: issue tracking, commit enforcement, branch naming, and progress updates",
   "author": {
     "name": "danwag06",

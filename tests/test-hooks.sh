@@ -512,6 +512,57 @@ else
 fi
 
 # ==========================================================================
+section "API Allow: Indirect Variable (ls glob + bash \$VAR)"
+
+# Exact pattern from api.md agent: resolve script path via ls, then call via variable
+CMD=$(printf 'API_SCRIPT=$(ls ~/.claude/plugins/cache/crystal-peak/linear-sync/*/scripts/linear-api.sh 2>/dev/null | sort -V | tail -1)\nbash "$API_SCRIPT" linear-crystalpeak '\''query { viewer { id } }'\''')
+INPUT=$(hook_input "$CMD" "$REPO_ROOT")
+RESULT=$(run_hook "$API_ALLOW" "$INPUT")
+EXIT_CODE="${RESULT%%|*}"
+OUTPUT="${RESULT#*|}"
+if is_allowed "$OUTPUT"; then
+  pass "ls glob + bash \"\$API_SCRIPT\" is allowed"
+else
+  fail "ls glob + bash \"\$API_SCRIPT\" should be allowed" "$OUTPUT"
+fi
+
+# With echo debug line in between
+CMD=$(printf 'API_SCRIPT=$(ls ~/.claude/plugins/cache/crystal-peak/linear-sync/*/scripts/linear-api.sh 2>/dev/null | sort -V | tail -1)\necho "Script: $API_SCRIPT"\nbash "$API_SCRIPT" linear-crystalpeak '\''query { viewer { id } }'\''')
+INPUT=$(hook_input "$CMD" "$REPO_ROOT")
+RESULT=$(run_hook "$API_ALLOW" "$INPUT")
+EXIT_CODE="${RESULT%%|*}"
+OUTPUT="${RESULT#*|}"
+if is_allowed "$OUTPUT"; then
+  pass "ls glob + echo + bash \"\$API_SCRIPT\" is allowed"
+else
+  fail "ls glob + echo + bash \"\$API_SCRIPT\" should be allowed" "$OUTPUT"
+fi
+
+# With multiline GraphQL query
+CMD=$(printf 'API_SCRIPT=$(ls ~/.claude/plugins/cache/crystal-peak/linear-sync/*/scripts/linear-api.sh 2>/dev/null | sort -V | tail -1)\nbash "$API_SCRIPT" linear-crystalpeak '\''query {\n  issues(first: 10) {\n    nodes { id title }\n  }\n}'\''')
+INPUT=$(hook_input "$CMD" "$REPO_ROOT")
+RESULT=$(run_hook "$API_ALLOW" "$INPUT")
+EXIT_CODE="${RESULT%%|*}"
+OUTPUT="${RESULT#*|}"
+if is_allowed "$OUTPUT"; then
+  pass "ls glob + bash \"\$API_SCRIPT\" with multiline query is allowed"
+else
+  fail "ls glob + bash \"\$API_SCRIPT\" with multiline query should be allowed" "$OUTPUT"
+fi
+
+# Indirect variable WITHOUT linear-api.sh in assignment should NOT be allowed
+CMD=$(printf 'SCRIPT=$(ls /tmp/evil-script.sh)\nbash "$SCRIPT" '\''query { viewer { id } }'\''')
+INPUT=$(hook_input "$CMD" "$REPO_ROOT")
+RESULT=$(run_hook "$API_ALLOW" "$INPUT")
+EXIT_CODE="${RESULT%%|*}"
+OUTPUT="${RESULT#*|}"
+if ! is_allowed "$OUTPUT"; then
+  pass "indirect variable from non-API path is not allowed"
+else
+  fail "indirect variable from non-API path should NOT be allowed" "$OUTPUT"
+fi
+
+# ==========================================================================
 section "API Allow: Heredoc Patterns"
 
 CMD=$(printf 'QUERY=$(cat <<'\''EOF'\''\nquery { viewer { id name } }\nEOF\n)\nbash /path/to/scripts/linear-api.sh linear-crystalpeak "$QUERY"')

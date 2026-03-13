@@ -30,6 +30,7 @@ ALL_SAFE=true
 HAS_API_CALL=false
 HEREDOC_DELIM=""
 IN_API_MULTILINE=false
+API_VAR_NAME=""  # tracks variable assigned from a linear-api.sh path
 
 while IFS= read -r line; do
   # Skip empty lines
@@ -66,9 +67,25 @@ while IFS= read -r line; do
       continue
     fi
   fi
+  # bash "$VAR" call where VAR was previously assigned from a linear-api.sh path
+  # Matches: bash "$API_SCRIPT" ... or bash $API_SCRIPT ...
+  if [[ -n "$API_VAR_NAME" ]] && echo "$line" | grep -qE "^\s*bash\s+\"?\\\$(\{${API_VAR_NAME}\}|${API_VAR_NAME})\"?(\s|\$)"; then
+    if ! echo "$line" | grep -qE '&&|\|\||;|\|'; then
+      HAS_API_CALL=true
+      QUOTE_COUNT=$(echo "$line" | tr -cd "'" | wc -c)
+      if (( QUOTE_COUNT % 2 != 0 )); then
+        IN_API_MULTILINE=true
+      fi
+      continue
+    fi
+  fi
   # Variable assignment: VAR='...' or VAR="..." or VAR=$(...)
   # Must NOT contain && or || or ; (use separate lines for chaining)
   if echo "$line" | grep -qE '^\s*[A-Za-z_][A-Za-z_0-9]*=' && ! echo "$line" | grep -qE '&&|\|\||;'; then
+    # Track variable assigned from a linear-api.sh path
+    if echo "$line" | grep -qF 'linear-api.sh'; then
+      API_VAR_NAME=$(echo "$line" | sed -nE 's/^\s*([A-Za-z_][A-Za-z_0-9]*)=.*/\1/p')
+    fi
     # Check if this assignment opens a heredoc: VAR=$(cat <<'DELIM') or VAR=$(cat <<DELIM)
     if echo "$line" | grep -qE "<<-?'?([A-Za-z_]+)'?"; then
       HEREDOC_DELIM=$(echo "$line" | sed -nE "s/.*<<-?'?([A-Za-z_]+)'?.*/\1/p")
@@ -79,8 +96,8 @@ while IFS= read -r line; do
   if echo "$line" | grep -qE '^\s*\)\s*$'; then
     continue
   fi
-  # Safe shell builtins: set +H (disable history expansion), export, shopt
-  if echo "$line" | grep -qE '^\s*(set\s+[+-][A-Za-z]|set\s+[+-]o\s+\w+|export\s+[A-Za-z_]|shopt\s)'; then
+  # Safe shell builtins: echo, set +H (disable history expansion), export, shopt
+  if echo "$line" | grep -qE '^\s*(echo\s|set\s+[+-][A-Za-z]|set\s+[+-]o\s+\w+|export\s+[A-Za-z_]|shopt\s)'; then
     continue
   fi
   # cd /path as a safe standalone line
