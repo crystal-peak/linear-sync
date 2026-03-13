@@ -512,6 +512,45 @@ else
 fi
 
 # ==========================================================================
+section "API Allow: Path Resolution (standalone)"
+
+# ls glob && echo pattern (just resolving the script path, no API call)
+CMD='API_SCRIPT=$(ls ~/.claude/plugins/cache/crystal-peak/linear-sync/*/scripts/linear-api.sh 2>/dev/null | sort -V | tail -1) && echo "$API_SCRIPT"'
+INPUT=$(hook_input "$CMD" "$REPO_ROOT")
+RESULT=$(run_hook "$API_ALLOW" "$INPUT")
+EXIT_CODE="${RESULT%%|*}"
+OUTPUT="${RESULT#*|}"
+if is_allowed "$OUTPUT"; then
+  pass "path resolution with && echo is allowed"
+else
+  fail "path resolution with && echo should be allowed" "$OUTPUT"
+fi
+
+# ls glob without echo (just the assignment)
+CMD='API_SCRIPT=$(ls ~/.claude/plugins/cache/crystal-peak/linear-sync/*/scripts/linear-api.sh 2>/dev/null | sort -V | tail -1)'
+INPUT=$(hook_input "$CMD" "$REPO_ROOT")
+RESULT=$(run_hook "$API_ALLOW" "$INPUT")
+EXIT_CODE="${RESULT%%|*}"
+OUTPUT="${RESULT#*|}"
+if is_allowed "$OUTPUT"; then
+  pass "path resolution without echo is allowed"
+else
+  fail "path resolution without echo should be allowed" "$OUTPUT"
+fi
+
+# Path resolution with dangerous chaining should NOT be allowed
+CMD='API_SCRIPT=$(ls ~/.claude/plugins/cache/crystal-peak/linear-sync/*/scripts/linear-api.sh 2>/dev/null | sort -V | tail -1) && rm -rf /'
+INPUT=$(hook_input "$CMD" "$REPO_ROOT")
+RESULT=$(run_hook "$API_ALLOW" "$INPUT")
+EXIT_CODE="${RESULT%%|*}"
+OUTPUT="${RESULT#*|}"
+if ! is_allowed "$OUTPUT"; then
+  pass "path resolution with dangerous chaining is not allowed"
+else
+  fail "path resolution with dangerous chaining should NOT be allowed" "$OUTPUT"
+fi
+
+# ==========================================================================
 section "API Allow: Indirect Variable (ls glob + bash \$VAR)"
 
 # Exact pattern from api.md agent: resolve script path via ls, then call via variable

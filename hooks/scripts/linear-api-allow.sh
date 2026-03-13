@@ -23,6 +23,20 @@ if echo "$COMMAND" | grep -qE 'curl\s.*https://api\.linear\.app/graphql'; then
   fi
 fi
 
+# Quick check: linear-api.sh path resolution (VAR=$(ls ...linear-api.sh...) && echo "$VAR")
+# Safe read-only operation — just finding the script path, no execution
+if echo "$COMMAND" | grep -qF 'linear-api.sh'; then
+  # Strip variable assignment + optional && echo (the only safe chaining pattern here)
+  CLEANED=$(echo "$COMMAND" | sed -E 's/[[:space:]]*&&[[:space:]]*echo[[:space:]].*//')
+  # Must be a single variable assignment referencing linear-api.sh, nothing else
+  if echo "$CLEANED" | grep -qE '^\s*[A-Za-z_][A-Za-z_0-9]*=.*linear-api\.sh' && \
+     [[ $(echo "$CLEANED" | wc -l) -eq 1 ]] && \
+     ! echo "$CLEANED" | grep -qE '&&|\|\||;'; then
+    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}\n'
+    exit 0
+  fi
+fi
+
 # Check every line: each must be either a variable assignment, a bash linear-api.sh call,
 # a heredoc body, or a safe shell builtin.
 # Anything else (chained commands, pipes, subshells) fails the check.
