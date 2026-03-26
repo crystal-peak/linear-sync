@@ -37,5 +37,5 @@
       "description": "The GitHub org/owner for this repo. Used for GitHub issue sync and org-level defaults."
     }
   },
-  "additionalProperties": false
+  "additionalProperties": true
 }
