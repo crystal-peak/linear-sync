@@ -190,23 +190,26 @@ When the main agent asks you to set up a repo:
 
 ### Fetch Issue Summary
 
-1. Query the issue via `linear-api.sh`: `bash "$API_SCRIPT" "$MCP_SERVER" 'query { issue(id: "PEAK-123") { id identifier title description state { name type } assignee { name } labels { nodes { name } } relations { nodes { type relatedIssue { identifier title } } } } }'`
+1. Query the issue via `linear-api.sh`: `bash "$API_SCRIPT" "$MCP_SERVER" 'query { issue(id: "PEAK-123") { id identifier title description state { name type } assignee { name } labels { nodes { name } } parent { identifier title } children { nodes { identifier title state { name } } } relations { nodes { type relatedIssue { identifier title } } } } }'`
 2. Check relations for "blocks" type to surface blockers.
-3. Return concise summary with blocker warnings if any.
+3. If the issue has a `parent`, note it (e.g., "Sub-issue of PEAK-100: Parent Title").
+4. If the issue has `children`, list them with their state.
+5. Return concise summary with blocker warnings if any.
 
 ### Create Issue
 
 1. Check workspace cache. Use cached IDs if fresh.
 2. Query workflow states to find "In Progress": `bash "$API_SCRIPT" "$MCP_SERVER" 'query { workflowStates(filter: { team: { key: { eq: "PEAK" } } }) { nodes { id name type } } }'`
-3. Create issue via mutation (use printf for the `!` in type): `QUERY=$(printf 'mutation($input: IssueCreateInput%s) { issueCreate(input: $input) { issue { id identifier title } } }' '!')` then `bash "$API_SCRIPT" "$MCP_SERVER" "$QUERY" '{"input": {...}}'`
+3. Create issue via mutation (use printf for the `!` in type): `QUERY=$(printf 'mutation($input: IssueCreateInput%s) { issueCreate(input: $input) { issue { id identifier title parent { identifier } } } }' '!')` then `bash "$API_SCRIPT" "$MCP_SERVER" "$QUERY" '{"input": {...}}'`
 4. If priority specified (0-4), include it.
-5. Save as `last_issue` and `last_issue_title` in state file.
-6. Return: "Created <ISSUE_ID>: <title> in <project> (In Progress)."
+5. **Sub-issues:** If the user asks to create a sub-issue (child of an existing issue), first fetch the parent issue's `id` (UUID), then include `"parentId": "<PARENT_UUID>"` in the mutation input. The parent can be specified by identifier (e.g., "PEAK-123") — resolve it to a UUID via the issue query first.
+6. Save as `last_issue` and `last_issue_title` in state file.
+7. Return: "Created <ISSUE_ID>: <title> in <project> (In Progress)." If it's a sub-issue, add "(sub-issue of <PARENT_ID>)".
 
 ### Fetch My Issues
 
-1. Query assigned issues: `bash "$API_SCRIPT" "$MCP_SERVER" 'query { viewer { assignedIssues(filter: { state: { type: { in: ["started", "unstarted"] } } }, first: 20) { nodes { identifier title state { name } priority priorityLabel } } } }'`
-2. Return numbered list with state, priority, and project.
+1. Query assigned issues: `bash "$API_SCRIPT" "$MCP_SERVER" 'query { viewer { assignedIssues(filter: { state: { type: { in: ["started", "unstarted"] } } }, first: 20) { nodes { identifier title state { name } priority priorityLabel parent { identifier title } children { nodes { identifier title state { name } } } } } } }'`
+2. Return numbered list with state, priority, and project. If an issue has a parent, note it. If it has children, list them indented.
 
 ### Search Issues (Duplicate Detection)
 

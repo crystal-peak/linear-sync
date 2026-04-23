@@ -2,6 +2,13 @@
 
 All notable changes to linear-sync are documented here.
 
+## [0.0.21-alpha] - 2026-03-26
+
+### Added
+- Sub-issue support: session digest shows parent/child hierarchy with indented display
+- Sub-issue creation: API agent can create child issues via `parentId` in mutations
+- Issue summary and "Fetch My Issues" queries now include `parent` and `children` fields
+
 ## [0.0.20-alpha] - 2026-03-26
 
 ### Added
